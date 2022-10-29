@@ -13,7 +13,7 @@ setup(
       install_requires=[
           'fastapi',
           'python-multipart',
-          'jwt',
+          'pyjwt[crypto]',
           'cryptography'
       ],      
       classifiers=[
