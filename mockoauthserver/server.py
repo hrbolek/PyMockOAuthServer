@@ -171,7 +171,7 @@ def createServer():
     @app.post('/token')
     async def exchangeCodeForToken(
         response: Response, 
-        grant_type: str = Form(), code: str = Form(), client_id: str = Form(), 
+        grant_type: str = Form(None), code: str = Form(None), client_id: str = Form(None), 
         client_secret: Optional[str] = Form(None),
         code_verifier: Optional[str] = Form(None),
         refresh_token: Optional[str] = Form(None)):
