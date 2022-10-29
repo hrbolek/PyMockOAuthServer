@@ -122,7 +122,7 @@ def createServer():
     app = FastAPI()
 
     @app.get('/login')
-    async def getLoginPage(response_type: str, 
+    async def getLoginPage(response_type: Union[str, None] = 'code', 
         client_id: Union[str, None] = 'SomeClientID', state: Union[str, None] = 'SomeState', redirect_uri: Union[str, None] = 'redirectURL'):
 
         storedParams = {
