@@ -11,6 +11,7 @@ setup(
       license='MIT',
       packages=['mockoauthserver'],
       install_requires=[
+          'fastapi',
           'python-multipart',
           'jwt',
           'cryptography'
