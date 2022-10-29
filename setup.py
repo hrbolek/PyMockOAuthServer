@@ -9,7 +9,7 @@ setup(
       author='Profesor Hrbolek',
       author_email='profesor@hrbolek.cz',
       license='MIT',
-      packages=['uoishelpers'],
+      packages=['mockoauthserver'],
       install_requires=[
           'python-multipart',
           'jwt',
