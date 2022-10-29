@@ -151,7 +151,7 @@ def createServer():
 
         # retrieve previously stored data from db table
         storedParams = db_table_params.get(key, None)
-        if storedParams is None:
+        if ((storedParams is None) or (key is None)):
             # login has not been initiated appropriatelly
             HTMLResponse(content=f"Bad OAuth Flow, {key} has not been found", status_code=404)
 
