@@ -144,7 +144,7 @@ def createServer():
 
     #pip install python-multipart
     @app.post('/login')
-    async def postNameAndPassword(username: str = Form(), password: str = Form(), key: str = Form()):
+    async def postNameAndPassword(username: str = Form(None), password: str = Form(None), key: str = Form(None)):
         
         # username and password must be checked here, if they match eachother
 
