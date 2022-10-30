@@ -26,7 +26,23 @@ def asJWT(data={}):
     result = jwt.encode(data, pem_private_key, algorithm="RS256")
     return result
 
-def loginPage(key):
+import random
+import string
+import datetime
+
+def randomString(size=32):
+    return ''.join((random.choice(string.ascii_letters + string.digits) for _ in range(size)))
+
+
+def loginPage(key=None, suggestedUsers=[]):
+    if key is None:
+        key = randomString()
+
+    if len(suggestedUsers) == 0:
+        userHelp = ''
+    else:    
+        userHelp = 'Try to use one of emails: ' + ', '.join(suggestedUsers)
+
     _loginPage = f"""<!DOCTYPE html>
     <html lang="en">
     <head>
@@ -50,10 +66,10 @@ def loginPage(key):
             <div class="mb-3">
             <label for="username" class="form-label">Email address</label>
             <input type="email" class="form-control" id="username" name="username" aria-describedby="emailHelp">
-            <div id="emailHelp" class="form-text">We'll never share your email with anyone else.</div>
+            <div id="emailHelp" class="form-text">{userHelp}</div>
             </div>
             <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
+            <label for="password" class="form-label">Password (can be any)</label>
             <input type="password" class="form-control" id="password" name="password">
             <input type="hidden" class="form-control" id="key" name="key" value={key}>
             </div>
@@ -67,13 +83,6 @@ def loginPage(key):
     </html>
     """
     return _loginPage
-
-import random
-import string
-import datetime
-
-def randomString(size=32):
-    return ''.join((random.choice(string.ascii_letters + string.digits) for _ in range(size)))
 
 def createToken(client_state='', expires_in=3600, refresh_token_expires_in=24*3600):
     code = "C-" + randomString()
@@ -107,7 +116,7 @@ def extractKeys(data={}, keys=[]):
             result[key] = value
     return result
 
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from fastapi import Form, Header
 from typing import Union, Optional
@@ -124,6 +133,8 @@ def createServer():
     @app.get('/login')
     async def getLoginPage(response_type: Union[str, None] = 'code', 
         client_id: Union[str, None] = 'SomeClientID', state: Union[str, None] = 'SomeState', redirect_uri: Union[str, None] = 'redirectURL'):
+
+        # if there is a sign that user is already logged in, then appropriate redirect should be returned (see method postNameAndPassword)
 
         storedParams = {
             "response_type": response_type, 
@@ -163,9 +174,9 @@ def createServer():
         storedParams['user'] = username
         db_table_codes[code] = storedParams
         if '?' in storedParams['redirect_uri']:
-            result = RedirectResponse(f"{storedParams['redirect_uri']}&code={code}&state={storedParams['state']}")
+            result = RedirectResponse(f"{storedParams['redirect_uri']}&code={code}&state={storedParams['state']}", status_code=status.HTTP_302_FOUND)
         else:
-            result = RedirectResponse(f"{storedParams['redirect_uri']}?code={code}&state={storedParams['state']}")
+            result = RedirectResponse(f"{storedParams['redirect_uri']}?code={code}&state={storedParams['state']}", status_code=status.HTTP_302_FOUND)
         return result
 
     @app.post('/token')
@@ -259,6 +270,18 @@ def createServer():
         responseJSON = extractKeys(tokenRow, ['user'])
 
         return asJWT(responseJSON)
+
+    @app.get('/logout')
+    async def logout(authorization: Union[str, None] = Header(default='Bearer _')):
+        [_, token] = authorization.split[' ']
+        tokenRow = db_table_refresh_tokens.get(token, None)
+        if not(tokenRow is None):
+            # remove token from tables
+            del db_table_tokens[tokenRow['access_token']]
+            del db_table_refresh_tokens[tokenRow['refresh_token']]
+
+        # where to go?
+        return RedirectResponse(f"./login?redirect_uri={tokenRow['redirect_uri']}")
 
     @app.get('/publickey')
     async def getPublicKeyPem():
