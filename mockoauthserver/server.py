@@ -34,7 +34,7 @@ def randomString(size=32):
     return ''.join((random.choice(string.ascii_letters + string.digits) for _ in range(size)))
 
 
-def loginPage(key=None, suggestedUsers=[]):
+def loginPage(key=None, token=None, suggestedUsers=[]):
     if key is None:
         key = randomString()
 
@@ -42,11 +42,15 @@ def loginPage(key=None, suggestedUsers=[]):
         userHelp = ''
     else:    
         userHelp = 'Try to use one of emails: ' + ', '.join(suggestedUsers)
+    if token is None:
+        tokenHtml = ''
+    else:
+        tokenHtml = f'''<div class="alert alert-warning" role="alert">{token}</div>'''
 
     _loginPage = f"""<!DOCTYPE html>
     <html lang="en">
     <head>
-    <title>Bootstrap 5 Example</title>
+    <title>Login Page</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -62,7 +66,7 @@ def loginPage(key=None, suggestedUsers=[]):
     <div class="container mt-5">
     <div class="row">
         <div class="col">
-        <form action="./login" method="post">
+        <form method="post">
             <div class="mb-3">
             <label for="username" class="form-label">Email address</label>
             <input type="email" class="form-control" id="username" name="username" aria-describedby="emailHelp">
@@ -73,6 +77,7 @@ def loginPage(key=None, suggestedUsers=[]):
             <input type="password" class="form-control" id="password" name="password">
             <input type="hidden" class="form-control" id="key" name="key" value={key}>
             </div>
+            {tokenHtml}
             <button type="submit" class="btn btn-primary">Login</button>
         </form>
         </div>
@@ -84,7 +89,7 @@ def loginPage(key=None, suggestedUsers=[]):
     """
     return _loginPage
 
-def createToken(client_state='', expires_in=3600, refresh_token_expires_in=24*3600):
+def createToken(client_state='', expires_in=3600, refresh_token_expires_in=24*3600, iss=None):
     code = "C-" + randomString()
     accesstoken = "ACCT-" + randomString()
     refreshtoken = "REFT-" + randomString()
@@ -106,6 +111,9 @@ def createToken(client_state='', expires_in=3600, refresh_token_expires_in=24*36
 
         'exp': date_of_creation + datetime.timedelta(seconds=expires_in)
     }
+    if iss:
+        result["iss"] = iss
+
     return result
 
 def extractKeys(data={}, keys=[]):
@@ -121,7 +129,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResp
 from fastapi import Form, Header
 from typing import Union, Optional
 
-def createServer():
+def createServer(iss="http://localhost:8000/publickey"):
     db_table_codes = {}
     db_table_params = {}
     
@@ -129,6 +137,22 @@ def createServer():
     db_table_refresh_tokens = {}
 
     app = FastAPI()
+
+    def tokenFromCode(code):
+        storedParams = db_table_codes.get(code, None)
+        if storedParams is None:
+            return None
+
+        del db_table_codes[code] # delete code, so it is not possible to use it more?
+
+        token = createToken(iss=iss)
+
+        tokenRow = {**token, **storedParams}
+        db_table_tokens[tokenRow['access_token']] = tokenRow
+        db_table_refresh_tokens[tokenRow['refresh_token']] = tokenRow
+
+        responseJSON = extractKeys(tokenRow, ['token_type', 'access_token', 'expires_in', 'refresh_token'])
+        return responseJSON
 
     @app.get('/login')
     async def getLoginPage(response_type: Union[str, None] = 'code', 
@@ -153,18 +177,69 @@ def createServer():
         # return login page
         return HTMLResponse(loginPage(key))
 
+    @app.get('/login2')
+    async def getLoginPage(response_type: Union[str, None] = 'code', 
+        client_id: Union[str, None] = 'SomeClientID', state: Union[str, None] = 'SomeState', redirect_uri: Union[str, None] = 'redirectURL'):
+
+        # if there is a sign that user is already logged in, then appropriate redirect should be returned (see method postNameAndPassword)
+
+        storedParams = {
+            "response_type": response_type, 
+            "client_id": client_id, 
+            "state": state, 
+            "redirect_uri": redirect_uri
+        }
+
+        # here client_id should be checked
+        # here redirect_uri should be checked (client should use always same redirect uri)
+
+        # save info into db table
+        key = randomString()
+        db_table_params[key] = storedParams
+
+        # return login page
+        return HTMLResponse(loginPage(key))
+
+    @app.post('/login2', )
+    async def postNameAndPassword(response: Response, username: str = Form(None), password: str = Form(None), key: str = Form(None)):
+        
+        # username and password must be checked here, if they match eachother
+
+        # retrieve previously stored data from db table
+        storedParams = db_table_params.get(key, None)
+        if ((storedParams is None) or (key is None)):
+            # login has not been initiated appropriatelly
+            #HTMLResponse(content=f"Bad OAuth Flow, {key} has not been found", status_code=404)
+            return RedirectResponse(f"./login2", status_code=status.HTTP_303_SEE_OTHER)
+
+        del db_table_params[key] # remove key from table
+
+        token = createToken()
+        storedParams['user'] = username
+        tokenRow = {**token, **storedParams}
+        db_table_tokens[tokenRow['access_token']] = tokenRow
+        db_table_refresh_tokens[tokenRow['refresh_token']] = tokenRow
+
+        responseJSON = extractKeys(tokenRow, ['token_type', 'access_token', 'expires_in', 'refresh_token'])
+        token = asJWT(responseJSON)
+
+        response = HTMLResponse(loginPage(token=f'{token}<br />{responseJSON}'))
+        response.set_cookie(key="authorization", value=token)
+
+        return response
+
     #pip install python-multipart
     @app.post('/login')
     async def postNameAndPassword(username: str = Form(None), password: str = Form(None), key: str = Form(None)):
         
         # username and password must be checked here, if they match eachother
 
-
         # retrieve previously stored data from db table
         storedParams = db_table_params.get(key, None)
         if ((storedParams is None) or (key is None)):
             # login has not been initiated appropriatelly
             HTMLResponse(content=f"Bad OAuth Flow, {key} has not been found", status_code=404)
+            
 
         # remove stored data from table
         del db_table_params[key] # remove key from table
@@ -195,23 +270,16 @@ def createServer():
 
         if grant_type == 'authorization_code':
             # retrieve previously stored data from db table
-            storedParams = db_table_codes.get(code, None)
-            if storedParams is None:
+
+            responseJSON = tokenFromCode(code)
+
+            if responseJSON is None:
                 # login has not been initiated appropriatelly
                 return JSONResponse(content={
                     'error': 'invalid_request',
                     'error_description': f'Bad OAuth Flow, code {code} has not been found'
                     }, status_code=404)
 
-            del db_table_codes[code] # delete code, so it is not possible to use it more?
-
-            token = createToken()
-
-            tokenRow = {**token, **storedParams}
-            db_table_tokens[tokenRow['access_token']] = tokenRow
-            db_table_refresh_tokens[tokenRow['refresh_token']] = tokenRow
-
-            responseJSON = extractKeys(tokenRow, ['token_type', 'access_token', 'expires_in', 'refresh_token'])
             pass
 
         if grant_type == 'refresh_token':
@@ -251,7 +319,8 @@ def createServer():
 
     @app.get('/userinfo')
     async def getUserInfo(authorization: Union[str, None] = Header(default='Bearer _')):
-        [_, token] = authorization.split[' ']
+        print("getUserInfo", authorization)
+        [_, token] = authorization.split(' ')
 
         if token == '_':
             return JSONResponse(content={
@@ -259,6 +328,7 @@ def createServer():
                 'error_description': f'Bad OAuth Flow, token {token} has not been found'
                 }, status_code=404)
 
+        print(db_table_tokens)
         tokenRow = db_table_tokens.get(token, None)
         if tokenRow is None:
             # login has not been initiated appropriatelly
@@ -269,7 +339,8 @@ def createServer():
 
         responseJSON = extractKeys(tokenRow, ['user'])
 
-        return asJWT(responseJSON)
+        # return asJWT(responseJSON)
+        return JSONResponse(content=responseJSON)
 
     @app.get('/logout')
     async def logout(authorization: Union[str, None] = Header(default='Bearer _')):
