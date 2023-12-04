@@ -129,7 +129,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResp
 from fastapi import Form, Header
 from typing import Union, Optional
 
-def createServer(iss="http://localhost:8000/publickey", db_users={"id": "5563aa07-45c8-4098-af17-f2e8ec21b9df", "email": "someone@somewhere.world"}):
+def createServer(
+        iss="http://localhost:8000/publickey", 
+        db_users=[{"id": "5563aa07-45c8-4098-af17-f2e8ec21b9df", "email": "someone@somewhere.world"}]
+        ):
     db_table_codes = {}
     db_table_params = {}
     
@@ -175,7 +178,7 @@ def createServer(iss="http://localhost:8000/publickey", db_users={"id": "5563aa0
         db_table_params[key] = storedParams
 
         # return login page
-        suggestedUsers = [user["email"] for user in db_users.values()]
+        suggestedUsers = [user["email"] for user in db_users]
         return HTMLResponse(loginPage(key, suggestedUsers=suggestedUsers))
 
     @app.get('/login2')
@@ -199,7 +202,7 @@ def createServer(iss="http://localhost:8000/publickey", db_users={"id": "5563aa0
         db_table_params[key] = storedParams
 
         # return login page
-        suggestedUsers = [user["email"] for user in db_users.values()]
+        suggestedUsers = [user["email"] for user in db_users]
         return HTMLResponse(loginPage(key, suggestedUsers=suggestedUsers))
 
     @app.post('/login2', )
@@ -217,7 +220,7 @@ def createServer(iss="http://localhost:8000/publickey", db_users={"id": "5563aa0
         del db_table_params[key] # remove key from table
 
         token = createToken()
-        user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username))
+        user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
         user_id = next(user_ids, None)
 
         storedParams['user'] = {"name": username, "email": username, "id": user_id}
@@ -230,10 +233,10 @@ def createServer(iss="http://localhost:8000/publickey", db_users={"id": "5563aa0
         responseJSON = extractKeys(tokenRow, ['token_type', 'access_token', 'expires_in', 'refresh_token', 'user_id'])
         token = asJWT(responseJSON)
 
-        response = HTMLResponse(loginPage(token=f'{token}<br />{responseJSON}'))
-        response.set_cookie(key="authorization", value=token)
+        result = RedirectResponse(f"{storedParams['redirect_uri']}", status_code=status.HTTP_302_FOUND)
+        result.set_cookie(key="authorization", value=token)
 
-        return response
+        return result
 
     #pip install python-multipart
     @app.post('/login')
@@ -245,7 +248,7 @@ def createServer(iss="http://localhost:8000/publickey", db_users={"id": "5563aa0
         storedParams = db_table_params.get(key, None)
         if ((storedParams is None) or (key is None)):
             # login has not been initiated appropriatelly
-            HTMLResponse(content=f"Bad OAuth Flow, {key} has not been found", status_code=404)
+            return HTMLResponse(content=f"Bad OAuth Flow, {key} has not been found", status_code=404)
             
 
         # remove stored data from table
@@ -253,7 +256,7 @@ def createServer(iss="http://localhost:8000/publickey", db_users={"id": "5563aa0
 
         # store code and related info into db table
         code = randomString()
-        user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username))
+        user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
         user_id = next(user_ids, None)
 
         storedParams['user'] = {"name": username, "email": username, "id": user_id}
