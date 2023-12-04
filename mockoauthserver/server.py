@@ -129,7 +129,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResp
 from fastapi import Form, Header
 from typing import Union, Optional
 
-def createServer(iss="http://localhost:8000/publickey"):
+def createServer(iss="http://localhost:8000/publickey", db_users={"id": "5563aa07-45c8-4098-af17-f2e8ec21b9df", "email": "someone@somewhere.world"}):
     db_table_codes = {}
     db_table_params = {}
     
@@ -175,7 +175,8 @@ def createServer(iss="http://localhost:8000/publickey"):
         db_table_params[key] = storedParams
 
         # return login page
-        return HTMLResponse(loginPage(key))
+        suggestedUsers = [user["email"] for user in db_users.values()]
+        return HTMLResponse(loginPage(key, suggestedUsers=suggestedUsers))
 
     @app.get('/login2')
     async def getLoginPage(response_type: Union[str, None] = 'code', 
@@ -198,7 +199,8 @@ def createServer(iss="http://localhost:8000/publickey"):
         db_table_params[key] = storedParams
 
         # return login page
-        return HTMLResponse(loginPage(key))
+        suggestedUsers = [user["email"] for user in db_users.values()]
+        return HTMLResponse(loginPage(key, suggestedUsers=suggestedUsers))
 
     @app.post('/login2', )
     async def postNameAndPassword(response: Response, username: str = Form(None), password: str = Form(None), key: str = Form(None)):
@@ -215,12 +217,17 @@ def createServer(iss="http://localhost:8000/publickey"):
         del db_table_params[key] # remove key from table
 
         token = createToken()
-        storedParams['user'] = username
+        user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username))
+        user_id = next(user_ids, None)
+
+        storedParams['user'] = {"name": username, "email": username, "id": user_id}
+        storedParams['user_id'] = user_id
         tokenRow = {**token, **storedParams}
+
         db_table_tokens[tokenRow['access_token']] = tokenRow
         db_table_refresh_tokens[tokenRow['refresh_token']] = tokenRow
 
-        responseJSON = extractKeys(tokenRow, ['token_type', 'access_token', 'expires_in', 'refresh_token'])
+        responseJSON = extractKeys(tokenRow, ['token_type', 'access_token', 'expires_in', 'refresh_token', 'user_id'])
         token = asJWT(responseJSON)
 
         response = HTMLResponse(loginPage(token=f'{token}<br />{responseJSON}'))
@@ -246,7 +253,12 @@ def createServer(iss="http://localhost:8000/publickey"):
 
         # store code and related info into db table
         code = randomString()
-        storedParams['user'] = username
+        user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username))
+        user_id = next(user_ids, None)
+
+        storedParams['user'] = {"name": username, "email": username, "id": user_id}
+        storedParams['user_id'] = user_id
+
         db_table_codes[code] = storedParams
         if '?' in storedParams['redirect_uri']:
             result = RedirectResponse(f"{storedParams['redirect_uri']}&code={code}&state={storedParams['state']}", status_code=status.HTTP_302_FOUND)
@@ -308,7 +320,7 @@ def createServer(iss="http://localhost:8000/publickey"):
             db_table_tokens[tokenRow['access_token']] = tokenRow
             db_table_refresh_tokens[tokenRow['refresh_token']] = tokenRow
 
-            responseJSON = extractKeys(tokenRow, ['token_type', 'access_token', 'expires_in', 'refresh_token'])
+            responseJSON = extractKeys(tokenRow, ['token_type', 'access_token', 'expires_in', 'refresh_token', 'user_id'])
             pass
 
         if code_verifier is not None:
