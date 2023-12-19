@@ -205,7 +205,7 @@ def createServer(
         suggestedUsers = [user["email"] for user in db_users]
         return HTMLResponse(loginPage(key, suggestedUsers=suggestedUsers))
 
-    @app.post('/login2', )
+    @app.post('/login2')
     async def postNameAndPassword(response: Response, username: str = Form(None), password: str = Form(None), key: str = Form(None)):
         
         # username and password must be checked here, if they match eachother
@@ -237,6 +237,65 @@ def createServer(
         result.set_cookie(key="authorization", value=token)
 
         return result
+
+    @app.get('/login3')
+    async def getLoginPage(response_type: Union[str, None] = 'code', 
+        client_id: Union[str, None] = 'SomeClientID', state: Union[str, None] = 'SomeState', redirect_uri: Union[str, None] = 'redirectURL'):
+
+        # if there is a sign that user is already logged in, then appropriate redirect should be returned (see method postNameAndPassword)
+
+        storedParams = {
+            "response_type": response_type, 
+            "client_id": client_id, 
+            "state": state, 
+            "redirect_uri": redirect_uri
+        }
+
+        # here client_id should be checked
+        # here redirect_uri should be checked (client should use always same redirect uri)
+
+        # save info into db table
+        key = randomString()
+        db_table_params[key] = storedParams
+
+        return {"key": key}
+
+    from pydantic import BaseModel
+    class NameAndPassword(BaseModel):
+        username: str
+        password: str
+        key: str
+
+    @app.post('/login3')
+    async def postNameAndPasswordinJSON(response: Response, item: NameAndPassword):
+        key = item.key
+        username = item.username
+        # username and password must be checked here, if they match eachother
+
+        # retrieve previously stored data from db table
+        storedParams = db_table_params.get(key, None)
+        if ((storedParams is None) or (key is None)):
+            # login has not been initiated appropriatelly
+            #HTMLResponse(content=f"Bad OAuth Flow, {key} has not been found", status_code=404)
+            return RedirectResponse(f"./login2", status_code=status.HTTP_303_SEE_OTHER)
+
+        del db_table_params[key] # remove key from table
+
+        token = createToken()
+        user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
+        user_id = next(user_ids, None)
+
+        storedParams['user'] = {"name": username, "email": username, "id": user_id}
+        storedParams['user_id'] = user_id
+        tokenRow = {**token, **storedParams}
+
+        db_table_tokens[tokenRow['access_token']] = tokenRow
+        db_table_refresh_tokens[tokenRow['refresh_token']] = tokenRow
+
+        responseJSON = extractKeys(tokenRow, ['token_type', 'access_token', 'expires_in', 'refresh_token', 'user_id'])
+        token = asJWT(responseJSON)
+
+        return {"token": token}
 
     #pip install python-multipart
     @app.post('/login')
