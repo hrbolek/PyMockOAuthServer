@@ -1,3 +1,4 @@
+from typing import Callable, Awaitable
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
@@ -73,7 +74,7 @@ def loginPage(key=None, token=None, suggestedUsers=[]):
             <div id="emailHelp" class="form-text">{userHelp}</div>
             </div>
             <div class="mb-3">
-            <label for="password" class="form-label">Password (can be any)</label>
+            <label for="password" class="form-label">Password (should be any)</label>
             <input type="password" class="form-control" id="password" name="password">
             <input type="hidden" class="form-control" id="key" name="key" value={key}>
             </div>
@@ -129,10 +130,29 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResp
 from fastapi import Form, Header
 from typing import Union, Optional
 
+
+
 def createServer(
         iss="http://localhost:8000/publickey", 
-        db_users=[{"id": "5563aa07-45c8-4098-af17-f2e8ec21b9df", "email": "someone@somewhere.world"}]
+        db_users=[{"id": "5563aa07-45c8-4098-af17-f2e8ec21b9df", "email": "someone@somewhere.world"}],
+        passwordValidator: Callable[[str, str], Awaitable[bool]] = None,
+        emailMapper: Callable[[str], Awaitable[str]] = None
         ):
+
+    async def buildInPasswordValidator(email, password):
+        return True
+    if passwordValidator is None:
+        passwordValidator = buildInPasswordValidator
+
+    async def buildInEmailMapper(email):
+        rows = filter(lambda item: item["email"] == email, db_users)
+        row = next(rows, None)
+        result = row.get("id", None)
+        return result
+    
+    if emailMapper is None:
+        emailMapper = buildInEmailMapper
+        
     db_table_codes = {}
     db_table_params = {}
     
@@ -208,9 +228,6 @@ def createServer(
     @app.post('/login2')
     async def postNameAndPassword(response: Response, username: str = Form(None), password: str = Form(None), key: str = Form(None)):
         
-        # username and password must be checked here, if they match eachother
-
-        # retrieve previously stored data from db table
         storedParams = db_table_params.get(key, None)
         if ((storedParams is None) or (key is None)):
             # login has not been initiated appropriatelly
@@ -219,6 +236,14 @@ def createServer(
 
         del db_table_params[key] # remove key from table
 
+        # username and password must be checked here, if they match eachother
+        validpassword = await passwordValidator(username, password)
+        if not validpassword:
+            # return RedirectResponse(f"./login2", status_code=status.HTTP_403_FORBIDDEN)
+            result = RedirectResponse(f"./login2?redirect_uri={storedParams['redirect_uri']}", status_code=status.HTTP_303_SEE_OTHER)
+            return result
+        
+        # retrieve previously stored data from db table
         token = createToken()
         user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
         user_id = next(user_ids, None)
@@ -271,6 +296,10 @@ def createServer(
         key = item.key
         username = item.username
         # username and password must be checked here, if they match eachother
+        validpassword = await passwordValidator(item.username, item.password)
+        if not validpassword:
+            # return RedirectResponse(f"./login2", status_code=status.HTTP_403_FORBIDDEN)
+            return RedirectResponse(f"./login3", status_code=status.HTTP_303_FORBIDDEN)
 
         # retrieve previously stored data from db table
         storedParams = db_table_params.get(key, None)
@@ -301,17 +330,19 @@ def createServer(
     @app.post('/login')
     async def postNameAndPassword(username: str = Form(None), password: str = Form(None), key: str = Form(None)):
         
-        # username and password must be checked here, if they match eachother
-
         # retrieve previously stored data from db table
         storedParams = db_table_params.get(key, None)
         if ((storedParams is None) or (key is None)):
             # login has not been initiated appropriatelly
             return HTMLResponse(content=f"Bad OAuth Flow, {key} has not been found", status_code=404)
             
-
         # remove stored data from table
         del db_table_params[key] # remove key from table
+
+        # username and password must be checked here, if they match eachother
+        validpassword = await passwordValidator(username, password)
+        if not validpassword:
+            return RedirectResponse(f"./login?redirect_uri={storedParams['redirect_uri']}", status_code=status.HTTP_302_FOUND)
 
         # store code and related info into db table
         code = randomString()
