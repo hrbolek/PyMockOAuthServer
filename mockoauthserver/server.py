@@ -299,7 +299,7 @@ def createServer(
         validpassword = await passwordValidator(item.username, item.password)
         if not validpassword:
             # return RedirectResponse(f"./login2", status_code=status.HTTP_403_FORBIDDEN)
-            return RedirectResponse(f"./login3", status_code=status.HTTP_303_FORBIDDEN)
+            return RedirectResponse(f"./login3", status_code=status.HTTP_303_SEE_OTHER)
 
         # retrieve previously stored data from db table
         storedParams = db_table_params.get(key, None)
