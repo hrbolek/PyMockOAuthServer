@@ -306,7 +306,7 @@ def createServer(
         if ((storedParams is None) or (key is None)):
             # login has not been initiated appropriatelly
             #HTMLResponse(content=f"Bad OAuth Flow, {key} has not been found", status_code=404)
-            return RedirectResponse(f"./login2", status_code=status.HTTP_303_SEE_OTHER)
+            return RedirectResponse(f"./login3", status_code=status.HTTP_303_SEE_OTHER)
 
         del db_table_params[key] # remove key from table
 
