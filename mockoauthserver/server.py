@@ -295,11 +295,6 @@ def createServer(
     async def postNameAndPasswordinJSON(response: Response, item: NameAndPassword):
         key = item.key
         username = item.username
-        # username and password must be checked here, if they match eachother
-        validpassword = await passwordValidator(item.username, item.password)
-        if not validpassword:
-            # return RedirectResponse(f"./login2", status_code=status.HTTP_403_FORBIDDEN)
-            return RedirectResponse(f"./login3", status_code=status.HTTP_303_SEE_OTHER)
 
         # retrieve previously stored data from db table
         storedParams = db_table_params.get(key, None)
@@ -310,9 +305,18 @@ def createServer(
 
         del db_table_params[key] # remove key from table
 
+        # username and password must be checked here, if they match eachother
+        validpassword = await passwordValidator(item.username, item.password)
+        if not validpassword:
+            # return RedirectResponse(f"./login2", status_code=status.HTTP_403_FORBIDDEN)
+            return RedirectResponse(f"./login3", status_code=status.HTTP_303_SEE_OTHER)
+
+
         token = createToken()
-        user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
-        user_id = next(user_ids, None)
+        # user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
+        # user_id = next(user_ids, None)
+
+        user_id = await emailMapper(username)
 
         storedParams['user'] = {"name": username, "email": username, "id": user_id}
         storedParams['user_id'] = user_id
