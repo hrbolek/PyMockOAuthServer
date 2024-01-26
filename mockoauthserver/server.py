@@ -127,7 +127,7 @@ def extractKeys(data={}, keys=[]):
 
 from fastapi import FastAPI, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
-from fastapi import Form, Header
+from fastapi import Form, Header, Cookie
 from typing import Union, Optional
 
 
@@ -452,8 +452,21 @@ def createServer(
         return JSONResponse(content=responseJSON)
 
     @app.get('/logout')
+    async def logout(authorization: Union[str, None] = Cookie(default='')):
+        tokenRow = db_table_refresh_tokens.get(authorization, None)
+        if not(tokenRow is None):
+            # remove token from tables
+            del db_table_tokens[tokenRow['access_token']]
+            del db_table_refresh_tokens[tokenRow['refresh_token']]
+
+        # where to go?
+        result = RedirectResponse(f"./login?redirect_uri={tokenRow['redirect_uri']}")
+        result.delete_cookie("authorization")
+        return result
+
+    @app.get('/logout2')
     async def logout(authorization: Union[str, None] = Header(default='Bearer _')):
-        [_, token] = authorization.split[' ']
+        token = authorization.replace('Bearer ')
         tokenRow = db_table_refresh_tokens.get(token, None)
         if not(tokenRow is None):
             # remove token from tables
@@ -461,7 +474,9 @@ def createServer(
             del db_table_refresh_tokens[tokenRow['refresh_token']]
 
         # where to go?
-        return RedirectResponse(f"./login?redirect_uri={tokenRow['redirect_uri']}")
+        result = RedirectResponse(f"./login?redirect_uri={tokenRow['redirect_uri']}")
+        result.delete_cookie("authorization")
+        return result
 
     @app.get('/publickey')
     async def getPublicKeyPem():
