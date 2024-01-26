@@ -2,4 +2,4 @@ fastapi[all]
 uvicorn[standard]
 
 cryptography
-pyjwt
+pyjwt[crypto]
