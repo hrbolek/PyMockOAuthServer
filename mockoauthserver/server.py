@@ -460,7 +460,10 @@ def createServer(
             del db_table_refresh_tokens[tokenRow['refresh_token']]
 
         # where to go?
-        result = RedirectResponse(f"./login?redirect_uri={tokenRow['redirect_uri']}")
+        if tokenRow:
+            result = RedirectResponse(f"./login?redirect_uri={tokenRow['redirect_uri']}")
+        else: 
+            result = RedirectResponse(f"/")
         result.delete_cookie("authorization")
         return result
 
@@ -475,7 +478,7 @@ def createServer(
 
         # where to go?
         if tokenRow:
-            result = RedirectResponse(f"./login?redirect_uri={tokenRow['redirect_uri']}")
+            result = RedirectResponse(f"./login2?redirect_uri={tokenRow['redirect_uri']}")
         else: 
             result = RedirectResponse(f"/")
         result.delete_cookie("authorization")
