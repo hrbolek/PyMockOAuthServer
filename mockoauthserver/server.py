@@ -453,36 +453,52 @@ def createServer(
 
     @app.get('/logout')
     async def logout(authorization: Union[str, None] = Cookie(default='')):
-        tokenRow = db_table_refresh_tokens.get(authorization, None)
-        if not(tokenRow is None):
-            # remove token from tables
-            del db_table_tokens[tokenRow['access_token']]
-            del db_table_refresh_tokens[tokenRow['refresh_token']]
+        tokenRow = None
+        #logout z cookies
+        if authorization is not None:
+            print("authorization", authorization)
+            jwtdecoded = jwt.decode(jwt=authorization, key=pem_public_key, algorithms=["RS256"])
+            print("jwtdecoded", jwtdecoded)
+            token = jwtdecoded["access_token"]
+            tokenRow = db_table_refresh_tokens.get(token, None)
+            print("tokenRow", tokenRow)
+            if not(tokenRow is None):
+                # remove token from tables
+                del db_table_tokens[tokenRow['access_token']]
+                del db_table_refresh_tokens[tokenRow['refresh_token']]
 
-        # where to go?
         if tokenRow:
-            result = RedirectResponse(f"./login?redirect_uri={tokenRow['redirect_uri']}")
-        else: 
-            result = RedirectResponse(f"/")
-        result.delete_cookie("authorization")
-        return result
+            response = RedirectResponse(f"./login?redirect_uri={tokenRow['redirect_uri']}")
+        else:
+            response = RedirectResponse(f"./login?redirect_uri=/")
+        response.delete_cookie(key="authorization")
+        # where to go?
+        return response
 
     @app.get('/logout2')
     async def logout(authorization: Union[str, None] = Header(default='Bearer _')):
-        token = authorization.replace('Bearer ')
-        tokenRow = db_table_refresh_tokens.get(token, None)
-        if not(tokenRow is None):
-            # remove token from tables
-            del db_table_tokens[tokenRow['access_token']]
-            del db_table_refresh_tokens[tokenRow['refresh_token']]
+        authorization = authorization.replace('Bearer ')
+        tokenRow = None
+        #logout z cookies
+        if authorization is not None:
+            print("authorization", authorization)
+            jwtdecoded = jwt.decode(jwt=authorization, key=pem_public_key, algorithms=["RS256"])
+            print("jwtdecoded", jwtdecoded)
+            token = jwtdecoded["access_token"]
+            tokenRow = db_table_refresh_tokens.get(token, None)
+            print("tokenRow", tokenRow)
+            if not(tokenRow is None):
+                # remove token from tables
+                del db_table_tokens[tokenRow['access_token']]
+                del db_table_refresh_tokens[tokenRow['refresh_token']]
 
-        # where to go?
         if tokenRow:
-            result = RedirectResponse(f"./login2?redirect_uri={tokenRow['redirect_uri']}")
-        else: 
-            result = RedirectResponse(f"/")
-        result.delete_cookie("authorization")
-        return result
+            response = RedirectResponse(f"./login?redirect_uri={tokenRow['redirect_uri']}")
+        else:
+            response = RedirectResponse(f"./login?redirect_uri=/")
+        response.delete_cookie(key="authorization")
+        # where to go?
+        return response
 
     @app.get('/publickey')
     async def getPublicKeyPem():
