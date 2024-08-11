@@ -245,8 +245,9 @@ def createServer(
         
         # retrieve previously stored data from db table
         token = createToken()
-        user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
-        user_id = next(user_ids, None)
+        # user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
+        # user_id = next(user_ids, None)
+        user_id = emailMapper(username)
 
         storedParams['user'] = {"name": username, "email": username, "id": user_id}
         storedParams['user_id'] = user_id
@@ -350,8 +351,9 @@ def createServer(
 
         # store code and related info into db table
         code = randomString()
-        user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
-        user_id = next(user_ids, None)
+        # user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
+        # user_id = next(user_ids, None)
+        user_id = emailMapper(username)
 
         storedParams['user'] = {"name": username, "email": username, "id": user_id}
         storedParams['user_id'] = user_id
