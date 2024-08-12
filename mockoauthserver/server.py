@@ -248,7 +248,7 @@ def createServer(
         token = createToken()
         # user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
         # user_id = next(user_ids, None)
-        user_id = emailMapper(username)
+        user_id = await emailMapper(username)
 
         storedParams['user'] = {"name": username, "email": username, "id": user_id}
         storedParams['user_id'] = user_id
@@ -354,7 +354,7 @@ def createServer(
         code = randomString()
         # user_ids = map(lambda user: user["id"], filter(lambda user: user["email"] == username, db_users))
         # user_id = next(user_ids, None)
-        user_id = emailMapper(username)
+        user_id = await emailMapper(username)
 
         storedParams['user'] = {"name": username, "email": username, "id": user_id}
         storedParams['user_id'] = user_id
