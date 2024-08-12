@@ -42,7 +42,8 @@ def loginPage(key=None, token=None, suggestedUsers=[]):
     if len(suggestedUsers) == 0:
         userHelp = ''
     else:    
-        userHelp = 'Try to use one of emails: ' + ', '.join(suggestedUsers)
+        usersStr = ', '.join(suggestedUsers) if len(suggestedUsers) < 15 else ', '.join(suggestedUsers[:15])
+        userHelp = 'Try to use one of emails: ' + usersStr
     if token is None:
         tokenHtml = ''
     else:
